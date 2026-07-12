@@ -1,70 +1,76 @@
-<meta charset="UTF-8" />
-<title>일정 자동 등록</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="stylesheet" href="/style.css" />
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>일정 자동 등록</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>일정 자동 등록</h1>
+    <p class="subtitle">이미지를 올리면 Gemini가 일정을 읽어 구글 캘린더에 등록해줘요.</p>
 
-<div class="container">
-  <h1>일정 자동 등록</h1>
-  <p class="subtitle">이미지를 올리면 Gemini가 일정을 읽어 구글 캘린더에 등록해줘요.</p>
+    <section id="upload-section" class="card">
+      <label for="image-input" class="drop-zone" id="drop-zone">
+        <span id="drop-zone-text">이미지를 선택하거나 여기로 드래그하세요</span>
+        <img id="preview" alt="" hidden />
+      </label>
+      <input id="image-input" type="file" accept="image/*" hidden />
+      <button id="analyze-btn" disabled>이미지 분석</button>
+      <p id="upload-status" class="status"></p>
+    </section>
 
-  <section id="upload-section" class="card">
-    <label for="image-input" class="drop-zone" id="drop-zone">
-      <span id="drop-zone-text">이미지를 선택하거나 여기로 드래그하세요</span>
-      <img id="preview" alt="" hidden />
-    </label>
-    <input id="image-input" type="file" accept="image/*" hidden />
-    <button id="analyze-btn" disabled>이미지 분석</button>
-    <p id="upload-status" class="status"></p>
-  </section>
+    <section id="form-section" class="card" hidden>
+      <button id="reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
 
-  <section id="form-section" class="card" hidden>
-    <button id="reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
+      <p id="confidence-banner" class="banner" hidden>
+        이미지에서 일정 정보를 명확히 읽지 못했어요. 아래 내용을 확인/수정해주세요.
+      </p>
 
-    <p id="confidence-banner" class="banner" hidden>
-      이미지에서 일정 정보를 명확히 읽지 못했어요. 아래 내용을 확인/수정해주세요.
-    </p>
-
-    <label>제목<input id="title" type="text" /></label>
-    <label>날짜
-      <span class="field-wrap">
-        <input id="date" type="date" />
-        <span class="field-mask" data-for="date"></span>
-      </span>
-    </label>
-
-    <label class="checkbox">
-      <input id="all-day" type="checkbox" />
-      하루 종일
-    </label>
-
-    <div id="time-fields" class="row">
-      <label>시작 시간
+      <label>제목<input id="title" type="text" /></label>
+      <label>날짜
         <span class="field-wrap">
-          <input id="start-time" type="time" />
-          <span class="field-mask" data-for="start-time"></span>
+          <input id="date" type="date" />
+          <span class="field-mask" data-for="date"></span>
         </span>
       </label>
-      <label>종료 시간
-        <span class="field-wrap">
-          <input id="end-time" type="time" />
-          <span class="field-mask" data-for="end-time"></span>
-        </span>
+
+      <label class="checkbox">
+        <input id="all-day" type="checkbox" />
+        하루 종일
       </label>
-    </div>
 
-    <label>장소<input id="location" type="text" /></label>
-    <label>설명<textarea id="description" rows="3"></textarea></label>
+      <div id="time-fields" class="row">
+        <label>시작 시간
+          <span class="field-wrap">
+            <input id="start-time" type="time" />
+            <span class="field-mask" data-for="start-time"></span>
+          </span>
+        </label>
+        <label>종료 시간
+          <span class="field-wrap">
+            <input id="end-time" type="time" />
+            <span class="field-mask" data-for="end-time"></span>
+          </span>
+        </label>
+      </div>
 
-    <button id="register-btn">구글 캘린더에 등록</button>
-    <p id="register-status" class="status"></p>
-  </section>
+      <label>장소<input id="location" type="text" /></label>
+      <label>설명<textarea id="description" rows="3"></textarea></label>
 
-  <footer class="footer">
-    <a href="/privacy.html">개인정보처리방침</a>
-    <a href="/terms.html">이용약관</a>
-  </footer>
-</div>
+      <button id="register-btn">구글 캘린더에 등록</button>
+      <p id="register-status" class="status"></p>
+    </section>
 
-<script src="/config.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="/app.js"></script>
+    <footer class="footer">
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/terms.html">이용약관</a>
+    </footer>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="/app.js"></script>
+</body>
+</html>
