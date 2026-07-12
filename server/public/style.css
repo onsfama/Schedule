@@ -29,12 +29,12 @@ body {
 
 .brand {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 4px;
 }
 
 .brand-logo {
-  height: 56px;
+  height: 88px;
   width: auto;
 }
 
@@ -56,7 +56,6 @@ h1 {
 .subtitle {
   color: #666;
   margin-top: 0;
-  text-align: center;
   font-size: 0.9rem;
 }
 
