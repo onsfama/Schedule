@@ -71,21 +71,55 @@ function resetToUpload() {
 
 resetBtn.addEventListener("click", resetToUpload);
 
-function handleFileSelected(file) {
-  if (!file) return;
-  if (file.type && !file.type.startsWith("image/")) return;
-  selectedFile = file;
-  const url = URL.createObjectURL(file);
-  preview.src = url;
-  preview.hidden = false;
-  dropZoneText.hidden = true;
-  analyzeBtn.disabled = false;
-  setStatus(uploadStatus, "", null);
+function appendDiag(text) {
+  setStatus(uploadStatus, `${uploadStatus.textContent} / ${text}`.replace(/^ \//, ""), null);
 }
 
-imageInput.addEventListener("change", () => handleFileSelected(imageInput.files[0]));
+function handleFileSelected(file) {
+  if (!file) {
+    appendDiag("file 없음");
+    return;
+  }
+  if (file.type && !file.type.startsWith("image/")) {
+    appendDiag(`타입 거부됨(${file.type})`);
+    return;
+  }
+  selectedFile = file;
+  try {
+    const url = URL.createObjectURL(file);
+    preview.src = url;
+    preview.hidden = false;
+    dropZoneText.hidden = true;
+    analyzeBtn.disabled = false;
+    appendDiag("미리보기 설정 완료");
+  } catch (err) {
+    appendDiag(`createObjectURL 에러: ${err}`);
+  }
+}
 
-dropZone.addEventListener("click", () => imageInput.click());
+preview.addEventListener("error", () => appendDiag("이미지 로드 실패"));
+preview.addEventListener("load", () => appendDiag("이미지 로드 성공"));
+
+let changeEventCount = 0;
+imageInput.addEventListener("change", () => {
+  changeEventCount++;
+  const files = imageInput.files;
+  const file = files && files[0];
+  setStatus(
+    uploadStatus,
+    `[진단#${changeEventCount}] 파일수:${files ? files.length : 0}` +
+      (file ? ` 이름:${file.name} 타입:${file.type || "없음"} 크기:${file.size}` : ""),
+    null
+  );
+  handleFileSelected(file);
+});
+
+let dropZoneClickCount = 0;
+dropZone.addEventListener("click", () => {
+  dropZoneClickCount++;
+  setStatus(uploadStatus, `[진단] 드롭존 클릭 #${dropZoneClickCount}`, null);
+  imageInput.click();
+});
 dropZone.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
