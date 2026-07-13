@@ -173,6 +173,8 @@ allDayInput.addEventListener("change", () => {
   timeFields.hidden = allDayInput.checked;
 });
 
+let googleReady = false;
+
 function initGoogleClient() {
   if (!window.GOOGLE_CLIENT_ID) {
     setStatus(registerStatus, "GOOGLE_CLIENT_ID가 설정되지 않았습니다.", "error");
@@ -192,7 +194,12 @@ function initGoogleClient() {
       performRegister();
     },
   });
+  googleReady = true;
+  registerBtn.disabled = false;
+  setStatus(registerStatus, "", null);
 }
+
+setStatus(registerStatus, "Google 로그인 준비 중...", null);
 
 window.addEventListener("load", () => {
   const waitForGoogle = setInterval(() => {
@@ -201,6 +208,16 @@ window.addEventListener("load", () => {
       initGoogleClient();
     }
   }, 100);
+
+  setTimeout(() => {
+    if (!googleReady) {
+      setStatus(
+        registerStatus,
+        "Google 로그인을 불러오는 데 시간이 걸리고 있어요. 네트워크를 확인하거나 다른 브라우저(Chrome 등)에서 열어보세요.",
+        "error"
+      );
+    }
+  }, 8000);
 });
 
 registerBtn.addEventListener("click", () => {
