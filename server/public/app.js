@@ -85,6 +85,14 @@ function handleFileSelected(file) {
 
 imageInput.addEventListener("change", () => handleFileSelected(imageInput.files[0]));
 
+dropZone.addEventListener("click", () => imageInput.click());
+dropZone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    imageInput.click();
+  }
+});
+
 ["dragover", "dragleave", "drop"].forEach((eventName) => {
   dropZone.addEventListener(eventName, (e) => e.preventDefault());
 });
