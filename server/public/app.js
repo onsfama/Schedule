@@ -81,7 +81,47 @@ function appendDiag(text) {
   setStatus(uploadStatus, `${uploadStatus.textContent} / ${text}`.replace(/^ \//, ""), null);
 }
 
-function handleFileSelected(file) {
+const MAX_IMAGE_DIMENSION = 1600;
+const JPEG_QUALITY = 0.85;
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+        const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(objectUrl);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("압축 실패"));
+            return;
+          }
+          const name = file.name.replace(/\.\w+$/, "") + ".jpg";
+          resolve(new File([blob], name, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        JPEG_QUALITY
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("이미지를 읽을 수 없습니다."));
+    };
+    img.src = objectUrl;
+  });
+}
+
+async function handleFileSelected(file) {
   if (!file) {
     appendDiag("file 없음");
     return;
@@ -90,9 +130,18 @@ function handleFileSelected(file) {
     appendDiag(`타입 거부됨(${file.type})`);
     return;
   }
-  selectedFile = file;
+
+  let fileForUpload = file;
   try {
-    const url = URL.createObjectURL(file);
+    fileForUpload = await compressImage(file);
+    appendDiag(`압축: ${(file.size / 1024).toFixed(0)}KB → ${(fileForUpload.size / 1024).toFixed(0)}KB`);
+  } catch (err) {
+    appendDiag(`압축 건너뜀(원본 사용): ${err}`);
+  }
+
+  selectedFile = fileForUpload;
+  try {
+    const url = URL.createObjectURL(fileForUpload);
     preview.src = url;
     preview.hidden = false;
     dropZoneText.hidden = true;
