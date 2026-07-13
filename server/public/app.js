@@ -82,7 +82,6 @@ function handleFileSelected(file) {
   setStatus(uploadStatus, "", null);
 }
 
-dropZone.addEventListener("click", () => imageInput.click());
 imageInput.addEventListener("change", () => handleFileSelected(imageInput.files[0]));
 
 ["dragover", "dragleave", "drop"].forEach((eventName) => {
