@@ -72,7 +72,8 @@ function resetToUpload() {
 resetBtn.addEventListener("click", resetToUpload);
 
 function handleFileSelected(file) {
-  if (!file || !file.type.startsWith("image/")) return;
+  if (!file) return;
+  if (file.type && !file.type.startsWith("image/")) return;
   selectedFile = file;
   const url = URL.createObjectURL(file);
   preview.src = url;
