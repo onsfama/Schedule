@@ -1,5 +1,11 @@
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 const imageInput = document.getElementById("image-input");
 const dropZone = document.getElementById("drop-zone");
 const dropZoneText = document.getElementById("drop-zone-text");
