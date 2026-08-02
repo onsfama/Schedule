@@ -1,7 +1,7 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import { extractEventFromImage } from "../services/geminiService";
+import { extractEventsFromImage } from "../services/geminiService";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -24,8 +24,8 @@ extractEventRouter.post("/extract-event", extractRateLimit, upload.single("image
   }
 
   try {
-    const event = await extractEventFromImage(req.file.buffer, req.file.mimetype);
-    res.json(event);
+    const events = await extractEventsFromImage(req.file.buffer, req.file.mimetype);
+    res.json(events);
   } catch (error) {
     console.error("이벤트 추출 실패:", error);
     const message = error instanceof Error ? error.message : "이벤트 추출 중 오류가 발생했습니다.";

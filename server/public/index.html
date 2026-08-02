@@ -31,8 +31,17 @@
       <p id="upload-status" class="status"></p>
     </section>
 
+    <section id="select-section" class="card" hidden>
+      <p>이미지에서 일정을 여러 개 찾았어요. 등록할 일정을 선택해주세요.</p>
+      <div id="event-list"></div>
+      <button id="select-reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
+    </section>
+
     <section id="form-section" class="card" hidden>
-      <button id="reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
+      <div class="row">
+        <button id="back-to-list-btn" type="button" class="secondary" hidden>다른 일정 선택</button>
+        <button id="reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
+      </div>
 
       <p id="confidence-banner" class="banner" hidden>
         이미지에서 일정 정보를 명확히 읽지 못했어요. 아래 내용을 확인/수정해주세요.

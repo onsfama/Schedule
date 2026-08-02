@@ -29,10 +29,10 @@ function getClient() {
   return new GoogleGenerativeAI(apiKey);
 }
 
-export async function extractEventFromImage(
+export async function extractEventsFromImage(
   imageBuffer: Buffer,
   mimeType: string
-): Promise<ExtractedEvent> {
+): Promise<ExtractedEvent[]> {
   assertSupportedMediaType(mimeType);
 
   const model = getClient().getGenerativeModel({
@@ -52,7 +52,11 @@ export async function extractEventFromImage(
 
   const text = result.response.text();
   try {
-    return JSON.parse(text) as ExtractedEvent;
+    const parsed = JSON.parse(text) as { events: ExtractedEvent[] };
+    if (!Array.isArray(parsed.events) || parsed.events.length === 0) {
+      throw new Error("empty");
+    }
+    return parsed.events;
   } catch {
     throw new Error("Gemini가 일정 정보를 추출하지 못했습니다.");
   }

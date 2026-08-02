@@ -13,6 +13,11 @@ const preview = document.getElementById("preview");
 const analyzeBtn = document.getElementById("analyze-btn");
 const uploadStatus = document.getElementById("upload-status");
 
+const selectSection = document.getElementById("select-section");
+const eventList = document.getElementById("event-list");
+const selectResetBtn = document.getElementById("select-reset-btn");
+const backToListBtn = document.getElementById("back-to-list-btn");
+
 const formSection = document.getElementById("form-section");
 const confidenceBanner = document.getElementById("confidence-banner");
 const titleInput = document.getElementById("title");
@@ -31,6 +36,7 @@ const registerStatus = document.getElementById("register-status");
 let selectedFile = null;
 let accessToken = null;
 let tokenClient = null;
+let extractedEvents = [];
 
 function setStatus(el, message, kind) {
   el.textContent = message;
@@ -72,10 +78,62 @@ function resetToUpload() {
   [dateInput, startTimeInput, endTimeInput].forEach(updateEmptyClass);
   setStatus(registerStatus, "", null);
 
+  extractedEvents = [];
+  eventList.innerHTML = "";
+  backToListBtn.hidden = true;
+  selectSection.hidden = true;
   formSection.hidden = true;
 }
 
 resetBtn.addEventListener("click", resetToUpload);
+selectResetBtn.addEventListener("click", resetToUpload);
+
+backToListBtn.addEventListener("click", () => {
+  formSection.hidden = true;
+  selectSection.hidden = false;
+});
+
+function formatEventMeta(event) {
+  const parts = [event.date || ""];
+  if (event.allDay) {
+    parts.push("하루 종일");
+  } else if (event.startTime) {
+    parts.push(event.endTime ? `${event.startTime}~${event.endTime}` : event.startTime);
+  }
+  if (event.location) parts.push(event.location);
+  return parts.filter(Boolean).join(" · ");
+}
+
+function loadEventIntoForm(event) {
+  titleInput.value = event.title || "";
+  dateInput.value = event.date || "";
+  allDayInput.checked = !!event.allDay;
+  startTimeInput.value = event.startTime || "";
+  endTimeInput.value = event.endTime || "";
+  locationInput.value = event.location || "";
+  descriptionInput.value = event.description || "";
+  timeFields.hidden = allDayInput.checked;
+  confidenceBanner.hidden = event.confidence !== "low";
+  [dateInput, startTimeInput, endTimeInput].forEach(updateEmptyClass);
+
+  backToListBtn.hidden = extractedEvents.length <= 1;
+  selectSection.hidden = true;
+  formSection.hidden = false;
+}
+
+function renderEventList(events) {
+  eventList.innerHTML = "";
+  events.forEach((event, index) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "event-item";
+    item.innerHTML = `<span class="event-title"></span><span class="event-meta"></span>`;
+    item.querySelector(".event-title").textContent = event.title || `일정 ${index + 1}`;
+    item.querySelector(".event-meta").textContent = formatEventMeta(event);
+    item.addEventListener("click", () => loadEventIntoForm(event));
+    eventList.appendChild(item);
+  });
+}
 
 function appendDiag(text) {
   setStatus(uploadStatus, `${uploadStatus.textContent} / ${text}`.replace(/^ \//, ""), null);
@@ -204,18 +262,14 @@ analyzeBtn.addEventListener("click", async () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "분석에 실패했습니다.");
 
-    titleInput.value = data.title || "";
-    dateInput.value = data.date || "";
-    allDayInput.checked = !!data.allDay;
-    startTimeInput.value = data.startTime || "";
-    endTimeInput.value = data.endTime || "";
-    locationInput.value = data.location || "";
-    descriptionInput.value = data.description || "";
-    timeFields.hidden = allDayInput.checked;
-    confidenceBanner.hidden = data.confidence !== "low";
-    [dateInput, startTimeInput, endTimeInput].forEach(updateEmptyClass);
-
-    formSection.hidden = false;
+    extractedEvents = Array.isArray(data) ? data : [data];
+    if (extractedEvents.length > 1) {
+      renderEventList(extractedEvents);
+      selectSection.hidden = false;
+      formSection.hidden = true;
+    } else {
+      loadEventIntoForm(extractedEvents[0]);
+    }
     setStatus(uploadStatus, "분석 완료", "success");
   } catch (err) {
     setStatus(uploadStatus, String(err.message || err), "error");
