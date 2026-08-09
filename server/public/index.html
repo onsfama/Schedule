@@ -23,63 +23,18 @@
 
     <section id="upload-section" class="card">
       <div class="drop-zone" id="drop-zone" role="button" tabindex="0">
-        <span id="drop-zone-text">이미지를 선택하거나 여기로 드래그하세요</span>
-        <img id="preview" alt="" hidden />
+        <span id="drop-zone-text">이미지를 선택하거나 여기로 드래그하세요 (여러 장 가능)</span>
+        <div id="preview-list"></div>
       </div>
-      <input id="image-input" type="file" accept="image/*" hidden />
+      <input id="image-input" type="file" accept="image/*" multiple hidden />
       <button id="analyze-btn" disabled>이미지 분석</button>
       <p id="upload-status" class="status"></p>
     </section>
 
     <section id="select-section" class="card" hidden>
-      <p>이미지에서 일정을 여러 개 찾았어요. 등록할 일정을 선택해주세요.</p>
+      <p id="select-intro">등록할 일정을 선택해주세요.</p>
       <div id="event-list"></div>
       <button id="select-reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
-    </section>
-
-    <section id="form-section" class="card" hidden>
-      <div class="row">
-        <button id="back-to-list-btn" type="button" class="secondary" hidden>다른 일정 선택</button>
-        <button id="reset-btn" type="button" class="secondary">새 이미지 선택 / 취소</button>
-      </div>
-
-      <p id="confidence-banner" class="banner" hidden>
-        이미지에서 일정 정보를 명확히 읽지 못했어요. 아래 내용을 확인/수정해주세요.
-      </p>
-
-      <label>제목<input id="title" type="text" /></label>
-      <label>날짜
-        <span class="field-wrap">
-          <input id="date" type="date" />
-          <span class="field-mask" data-for="date"></span>
-        </span>
-      </label>
-
-      <label class="checkbox">
-        <input id="all-day" type="checkbox" />
-        하루 종일
-      </label>
-
-      <div id="time-fields" class="row">
-        <label>시작 시간
-          <span class="field-wrap">
-            <input id="start-time" type="time" />
-            <span class="field-mask" data-for="start-time"></span>
-          </span>
-        </label>
-        <label>종료 시간
-          <span class="field-wrap">
-            <input id="end-time" type="time" />
-            <span class="field-mask" data-for="end-time"></span>
-          </span>
-        </label>
-      </div>
-
-      <label>장소<input id="location" type="text" /></label>
-      <label>설명<textarea id="description" rows="3"></textarea></label>
-
-      <button id="register-btn" disabled>구글 캘린더에 등록</button>
-      <p id="register-status" class="status"></p>
     </section>
 
     <footer class="footer">
@@ -87,6 +42,48 @@
       <a href="/terms.html">이용약관</a>
     </footer>
   </div>
+
+  <template id="event-form-template">
+    <div class="event-body">
+      <p class="confidence-banner banner" hidden>
+        이미지에서 일정 정보를 명확히 읽지 못했어요. 아래 내용을 확인/수정해주세요.
+      </p>
+
+      <label>제목<input class="f-title" type="text" /></label>
+      <label>날짜
+        <span class="field-wrap">
+          <input class="f-date" type="date" />
+          <span class="field-mask"></span>
+        </span>
+      </label>
+
+      <label class="checkbox">
+        <input class="f-allday" type="checkbox" />
+        하루 종일
+      </label>
+
+      <div class="f-time-fields row">
+        <label>시작 시간
+          <span class="field-wrap">
+            <input class="f-start" type="time" />
+            <span class="field-mask"></span>
+          </span>
+        </label>
+        <label>종료 시간
+          <span class="field-wrap">
+            <input class="f-end" type="time" />
+            <span class="field-mask"></span>
+          </span>
+        </label>
+      </div>
+
+      <label>장소<input class="f-location" type="text" /></label>
+      <label>설명<textarea class="f-description" rows="3"></textarea></label>
+
+      <button class="f-register" type="button" disabled>구글 캘린더에 등록</button>
+      <p class="f-status status"></p>
+    </div>
+  </template>
 
   <script src="/config.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>

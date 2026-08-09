@@ -9,34 +9,21 @@ if ("serviceWorker" in navigator) {
 const imageInput = document.getElementById("image-input");
 const dropZone = document.getElementById("drop-zone");
 const dropZoneText = document.getElementById("drop-zone-text");
-const preview = document.getElementById("preview");
+const previewList = document.getElementById("preview-list");
 const analyzeBtn = document.getElementById("analyze-btn");
 const uploadStatus = document.getElementById("upload-status");
 
 const selectSection = document.getElementById("select-section");
+const selectIntro = document.getElementById("select-intro");
 const eventList = document.getElementById("event-list");
 const selectResetBtn = document.getElementById("select-reset-btn");
-const backToListBtn = document.getElementById("back-to-list-btn");
+const eventFormTemplate = document.getElementById("event-form-template");
 
-const formSection = document.getElementById("form-section");
-const confidenceBanner = document.getElementById("confidence-banner");
-const titleInput = document.getElementById("title");
-const dateInput = document.getElementById("date");
-const allDayInput = document.getElementById("all-day");
-const timeFields = document.getElementById("time-fields");
-const startTimeInput = document.getElementById("start-time");
-const endTimeInput = document.getElementById("end-time");
-const locationInput = document.getElementById("location");
-const descriptionInput = document.getElementById("description");
-
-const resetBtn = document.getElementById("reset-btn");
-const registerBtn = document.getElementById("register-btn");
-const registerStatus = document.getElementById("register-status");
-
-let selectedFile = null;
+let selectedFiles = [];
 let accessToken = null;
 let tokenClient = null;
-let extractedEvents = [];
+let googleReady = false;
+let pendingAfterLogin = null;
 
 function setStatus(el, message, kind) {
   el.textContent = message;
@@ -44,96 +31,33 @@ function setStatus(el, message, kind) {
 }
 
 function updateEmptyClass(input) {
-  const mask = document.querySelector(`.field-mask[data-for="${input.id}"]`);
+  const mask = input.parentElement.querySelector(".field-mask");
   if (mask) mask.classList.toggle("visible", !input.value);
 }
 
-[dateInput, startTimeInput, endTimeInput].forEach((input) => {
+function wireFieldMask(input) {
+  updateEmptyClass(input);
   input.addEventListener("input", () => updateEmptyClass(input));
   input.addEventListener("focus", () => {
-    const mask = document.querySelector(`.field-mask[data-for="${input.id}"]`);
+    const mask = input.parentElement.querySelector(".field-mask");
     if (mask) mask.classList.remove("visible");
   });
   input.addEventListener("blur", () => updateEmptyClass(input));
-});
+}
 
 function resetToUpload() {
-  selectedFile = null;
+  selectedFiles = [];
   imageInput.value = "";
-  preview.src = "";
-  preview.hidden = true;
+  previewList.innerHTML = "";
   dropZoneText.hidden = false;
   analyzeBtn.disabled = true;
   setStatus(uploadStatus, "", null);
 
-  titleInput.value = "";
-  dateInput.value = "";
-  allDayInput.checked = false;
-  startTimeInput.value = "";
-  endTimeInput.value = "";
-  locationInput.value = "";
-  descriptionInput.value = "";
-  timeFields.hidden = false;
-  confidenceBanner.hidden = true;
-  [dateInput, startTimeInput, endTimeInput].forEach(updateEmptyClass);
-  setStatus(registerStatus, "", null);
-
-  extractedEvents = [];
   eventList.innerHTML = "";
-  backToListBtn.hidden = true;
   selectSection.hidden = true;
-  formSection.hidden = true;
 }
 
-resetBtn.addEventListener("click", resetToUpload);
 selectResetBtn.addEventListener("click", resetToUpload);
-
-backToListBtn.addEventListener("click", () => {
-  formSection.hidden = true;
-  selectSection.hidden = false;
-});
-
-function formatEventMeta(event) {
-  const parts = [event.date || ""];
-  if (event.allDay) {
-    parts.push("하루 종일");
-  } else if (event.startTime) {
-    parts.push(event.endTime ? `${event.startTime}~${event.endTime}` : event.startTime);
-  }
-  if (event.location) parts.push(event.location);
-  return parts.filter(Boolean).join(" · ");
-}
-
-function loadEventIntoForm(event) {
-  titleInput.value = event.title || "";
-  dateInput.value = event.date || "";
-  allDayInput.checked = !!event.allDay;
-  startTimeInput.value = event.startTime || "";
-  endTimeInput.value = event.endTime || "";
-  locationInput.value = event.location || "";
-  descriptionInput.value = event.description || "";
-  timeFields.hidden = allDayInput.checked;
-  confidenceBanner.hidden = event.confidence !== "low";
-  [dateInput, startTimeInput, endTimeInput].forEach(updateEmptyClass);
-
-  backToListBtn.hidden = extractedEvents.length <= 1;
-  selectSection.hidden = true;
-  formSection.hidden = false;
-}
-
-function renderEventList(events) {
-  eventList.innerHTML = "";
-  events.forEach((event, index) => {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "event-item";
-    item.innerHTML = `<span class="event-title"></span><span class="event-meta"></span>`;
-    item.querySelector(".event-title").textContent = event.title || `일정 ${index + 1}`;
-    item.querySelector(".event-meta").textContent = formatEventMeta(event);
-    item.addEventListener("click", () => loadEventIntoForm(event));
-    eventList.appendChild(item);
-  });
-}
 
 function appendDiag(text) {
   setStatus(uploadStatus, `${uploadStatus.textContent} / ${text}`.replace(/^ \//, ""), null);
@@ -143,7 +67,7 @@ const MAX_IMAGE_DIMENSION = 1600;
 const JPEG_QUALITY = 0.85;
 
 function compressImage(file) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
@@ -161,7 +85,7 @@ function compressImage(file) {
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            reject(new Error("압축 실패"));
+            resolve(file);
             return;
           }
           const name = file.name.replace(/\.\w+$/, "") + ".jpg";
@@ -173,64 +97,39 @@ function compressImage(file) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("이미지를 읽을 수 없습니다."));
+      resolve(file);
     };
     img.src = objectUrl;
   });
 }
 
-async function handleFileSelected(file) {
-  if (!file) {
-    appendDiag("file 없음");
-    return;
-  }
-  if (file.type && !file.type.startsWith("image/")) {
-    appendDiag(`타입 거부됨(${file.type})`);
+async function handleFilesSelected(fileList) {
+  const files = Array.from(fileList || []).filter(
+    (file) => !file.type || file.type.startsWith("image/")
+  );
+  if (files.length === 0) {
+    appendDiag("이미지 파일이 없습니다.");
     return;
   }
 
-  let fileForUpload = file;
-  try {
-    fileForUpload = await compressImage(file);
-    appendDiag(`압축: ${(file.size / 1024).toFixed(0)}KB → ${(fileForUpload.size / 1024).toFixed(0)}KB`);
-  } catch (err) {
-    appendDiag(`압축 건너뜀(원본 사용): ${err}`);
-  }
+  setStatus(uploadStatus, `이미지 ${files.length}장 처리 중...`, null);
+  const compressed = await Promise.all(files.map((file) => compressImage(file)));
+  selectedFiles = compressed;
 
-  selectedFile = fileForUpload;
-  try {
-    const url = URL.createObjectURL(fileForUpload);
-    preview.src = url;
-    preview.hidden = false;
-    dropZoneText.hidden = true;
-    analyzeBtn.disabled = false;
-    appendDiag("미리보기 설정 완료");
-  } catch (err) {
-    appendDiag(`createObjectURL 에러: ${err}`);
-  }
+  previewList.innerHTML = "";
+  compressed.forEach((file) => {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(file);
+    img.alt = "";
+    previewList.appendChild(img);
+  });
+  dropZoneText.hidden = true;
+  analyzeBtn.disabled = false;
+  analyzeBtn.textContent = `이미지 분석 (${compressed.length}장)`;
+  setStatus(uploadStatus, "", null);
 }
 
-preview.addEventListener("error", () => appendDiag("이미지 로드 실패"));
-preview.addEventListener("load", () => appendDiag("이미지 로드 성공"));
-
-let changeEventCount = 0;
-imageInput.addEventListener("change", () => {
-  changeEventCount++;
-  const files = imageInput.files;
-  const file = files && files[0];
-  setStatus(
-    uploadStatus,
-    `[진단#${changeEventCount}] 파일수:${files ? files.length : 0}` +
-      (file ? ` 이름:${file.name} 타입:${file.type || "없음"} 크기:${file.size}` : ""),
-    null
-  );
-  handleFileSelected(file);
-});
-
-let dropZoneClickCount = 0;
 dropZone.addEventListener("click", () => {
-  dropZoneClickCount++;
-  setStatus(uploadStatus, `[진단] 드롭존 클릭 #${dropZoneClickCount}`, null);
   imageInput.click();
 });
 dropZone.addEventListener("keydown", (e) => {
@@ -240,6 +139,10 @@ dropZone.addEventListener("keydown", (e) => {
   }
 });
 
+imageInput.addEventListener("change", () => {
+  handleFilesSelected(imageInput.files);
+});
+
 ["dragover", "dragleave", "drop"].forEach((eventName) => {
   dropZone.addEventListener(eventName, (e) => e.preventDefault());
 });
@@ -247,47 +150,209 @@ dropZone.addEventListener("dragover", () => dropZone.classList.add("dragover"));
 dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
 dropZone.addEventListener("drop", (e) => {
   dropZone.classList.remove("dragover");
-  handleFileSelected(e.dataTransfer.files[0]);
+  handleFilesSelected(e.dataTransfer.files);
 });
 
 analyzeBtn.addEventListener("click", async () => {
-  if (!selectedFile) return;
+  if (selectedFiles.length === 0) return;
   analyzeBtn.disabled = true;
-  setStatus(uploadStatus, "이미지를 분석하는 중...", null);
+  setStatus(uploadStatus, `이미지 ${selectedFiles.length}장 분석하는 중...`, null);
 
-  try {
-    const formData = new FormData();
-    formData.append("image", selectedFile);
-    const res = await fetch("/api/extract-event", { method: "POST", body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "분석에 실패했습니다.");
+  const results = await Promise.allSettled(
+    selectedFiles.map(async (file) => {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/extract-event", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "분석에 실패했습니다.");
+      return Array.isArray(data) ? data : [data];
+    })
+  );
 
-    extractedEvents = Array.isArray(data) ? data : [data];
-    if (extractedEvents.length > 1) {
-      renderEventList(extractedEvents);
-      selectSection.hidden = false;
-      formSection.hidden = true;
+  const allEvents = [];
+  let failureCount = 0;
+  results.forEach((result) => {
+    if (result.status === "fulfilled") {
+      allEvents.push(...result.value);
     } else {
-      loadEventIntoForm(extractedEvents[0]);
+      failureCount++;
     }
-    setStatus(uploadStatus, "분석 완료", "success");
-  } catch (err) {
-    setStatus(uploadStatus, String(err.message || err), "error");
-  } finally {
-    analyzeBtn.disabled = false;
+  });
+
+  analyzeBtn.disabled = false;
+
+  if (allEvents.length === 0) {
+    setStatus(uploadStatus, "분석에 실패했습니다. 다시 시도해주세요.", "error");
+    return;
   }
+
+  renderEventAccordion(allEvents);
+  setStatus(
+    uploadStatus,
+    failureCount > 0 ? `일부 이미지 분석 실패(${failureCount}장). 나머지는 완료.` : "분석 완료",
+    failureCount > 0 ? "error" : "success"
+  );
 });
 
-allDayInput.addEventListener("change", () => {
-  timeFields.hidden = allDayInput.checked;
-});
+function formatEventMeta(event) {
+  const parts = [event.date || ""];
+  if (event.allDay) {
+    parts.push("하루 종일");
+  } else if (event.startTime) {
+    parts.push(event.endTime ? `${event.startTime}~${event.endTime}` : event.startTime);
+  }
+  if (event.location) parts.push(event.location);
+  return parts.filter(Boolean).join(" · ");
+}
 
-let googleReady = false;
+function renderEventAccordion(events) {
+  eventList.innerHTML = "";
+  selectIntro.textContent =
+    events.length > 1 ? "일정을 여러 개 찾았어요. 원하는 일정을 눌러 확인/등록하세요." : "찾은 일정을 확인하고 등록하세요.";
+
+  events.forEach((event, index) => {
+    eventList.appendChild(createAccordionItem(event, index));
+  });
+
+  selectSection.hidden = false;
+
+  if (events.length === 1) {
+    const header = eventList.querySelector(".event-accordion-header");
+    if (header) header.click();
+  }
+}
+
+function createAccordionItem(event, index) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "event-accordion";
+
+  const header = document.createElement("button");
+  header.type = "button";
+  header.className = "event-accordion-header";
+  header.setAttribute("aria-expanded", "false");
+  header.innerHTML = `<span class="event-title"></span><span class="event-meta"></span>`;
+  header.querySelector(".event-title").textContent = event.title || `일정 ${index + 1}`;
+  header.querySelector(".event-meta").textContent = formatEventMeta(event);
+
+  const body = document.createElement("div");
+  body.className = "event-accordion-body";
+  body.hidden = true;
+  body.appendChild(eventFormTemplate.content.cloneNode(true));
+
+  const banner = body.querySelector(".confidence-banner");
+  const fTitle = body.querySelector(".f-title");
+  const fDate = body.querySelector(".f-date");
+  const fAllDay = body.querySelector(".f-allday");
+  const fTimeFields = body.querySelector(".f-time-fields");
+  const fStart = body.querySelector(".f-start");
+  const fEnd = body.querySelector(".f-end");
+  const fLocation = body.querySelector(".f-location");
+  const fDescription = body.querySelector(".f-description");
+  const fRegister = body.querySelector(".f-register");
+  const fStatus = body.querySelector(".f-status");
+
+  fTitle.value = event.title || "";
+  fDate.value = event.date || "";
+  fAllDay.checked = !!event.allDay;
+  fStart.value = event.startTime || "";
+  fEnd.value = event.endTime || "";
+  fLocation.value = event.location || "";
+  fDescription.value = event.description || "";
+  fTimeFields.hidden = fAllDay.checked;
+  banner.hidden = event.confidence !== "low";
+  fRegister.disabled = !googleReady;
+
+  [fDate, fStart, fEnd].forEach(wireFieldMask);
+
+  fAllDay.addEventListener("change", () => {
+    fTimeFields.hidden = fAllDay.checked;
+  });
+
+  function doRegister() {
+    fRegister.disabled = true;
+    setStatus(fStatus, "등록하는 중...", null);
+
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const calendarEvent = {
+      summary: fTitle.value.trim(),
+      location: fLocation.value.trim(),
+      description: fDescription.value.trim(),
+    };
+    if (fAllDay.checked) {
+      const nextDay = new Date(fDate.value);
+      nextDay.setDate(nextDay.getDate() + 1);
+      calendarEvent.start = { date: fDate.value };
+      calendarEvent.end = { date: nextDay.toISOString().slice(0, 10) };
+    } else {
+      const startTime = fStart.value || "09:00";
+      const endTime = fEnd.value || startTime;
+      calendarEvent.start = { dateTime: `${fDate.value}T${startTime}:00`, timeZone };
+      calendarEvent.end = { dateTime: `${fDate.value}T${endTime}:00`, timeZone };
+    }
+
+    fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(calendarEvent),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 401) {
+            accessToken = null;
+            setStatus(fStatus, "로그인이 만료됐습니다. 버튼을 다시 눌러주세요.", "error");
+          } else {
+            throw new Error(data.error?.message || "등록에 실패했습니다.");
+          }
+          return;
+        }
+        setStatus(fStatus, "캘린더에 등록되었습니다.", "success");
+      })
+      .catch((err) => setStatus(fStatus, String(err.message || err), "error"))
+      .finally(() => {
+        fRegister.disabled = false;
+      });
+  }
+
+  fRegister.addEventListener("click", () => {
+    if (!fTitle.value.trim() || !fDate.value) {
+      setStatus(fStatus, "제목과 날짜는 필수입니다.", "error");
+      return;
+    }
+
+    if (accessToken) {
+      doRegister();
+      return;
+    }
+
+    if (!tokenClient) {
+      setStatus(fStatus, "Google 로그인 초기화 중입니다. 잠시 후 다시 시도해주세요.", "error");
+      return;
+    }
+
+    setStatus(fStatus, "Google 로그인 중...", null);
+    document.querySelectorAll(".f-register").forEach((btn) => (btn.disabled = true));
+    pendingAfterLogin = doRegister;
+    tokenClient.requestAccessToken({ prompt: "consent" });
+  });
+
+  header.addEventListener("click", () => {
+    const willOpen = body.hidden;
+    body.hidden = !willOpen;
+    header.setAttribute("aria-expanded", String(willOpen));
+  });
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(body);
+  return wrapper;
+}
 
 function initGoogleClient() {
   if (!window.GOOGLE_CLIENT_ID) {
-    setStatus(registerStatus, "GOOGLE_CLIENT_ID가 설정되지 않았습니다.", "error");
-    registerBtn.disabled = true;
+    setStatus(uploadStatus, "GOOGLE_CLIENT_ID가 설정되지 않았습니다.", "error");
     return;
   }
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -295,20 +360,20 @@ function initGoogleClient() {
     scope: CALENDAR_SCOPE,
     callback: (response) => {
       if (response.error) {
-        setStatus(registerStatus, "로그인이 취소되었거나 실패했습니다.", "error");
-        registerBtn.disabled = false;
+        pendingAfterLogin = null;
+        document.querySelectorAll(".f-register").forEach((btn) => (btn.disabled = false));
         return;
       }
       accessToken = response.access_token;
-      performRegister();
+      document.querySelectorAll(".f-register").forEach((btn) => (btn.disabled = false));
+      const fn = pendingAfterLogin;
+      pendingAfterLogin = null;
+      if (fn) fn();
     },
   });
   googleReady = true;
-  registerBtn.disabled = false;
-  setStatus(registerStatus, "", null);
+  document.querySelectorAll(".f-register").forEach((btn) => (btn.disabled = false));
 }
-
-setStatus(registerStatus, "Google 로그인 준비 중...", null);
 
 window.addEventListener("load", () => {
   const waitForGoogle = setInterval(() => {
@@ -320,95 +385,7 @@ window.addEventListener("load", () => {
 
   setTimeout(() => {
     if (!googleReady) {
-      setStatus(
-        registerStatus,
-        "Google 로그인을 불러오는 데 시간이 걸리고 있어요. 네트워크를 확인하거나 다른 브라우저(Chrome 등)에서 열어보세요.",
-        "error"
-      );
+      appendDiag("Google 로그인을 불러오는 데 시간이 걸리고 있어요. 네트워크를 확인하거나 다른 브라우저(Chrome 등)에서 열어보세요.");
     }
   }, 8000);
 });
-
-registerBtn.addEventListener("click", () => {
-  if (!titleInput.value.trim() || !dateInput.value) {
-    setStatus(registerStatus, "제목과 날짜는 필수입니다.", "error");
-    return;
-  }
-
-  if (accessToken) {
-    performRegister();
-    return;
-  }
-
-  if (!tokenClient) {
-    setStatus(registerStatus, "Google 로그인 초기화 중입니다. 잠시 후 다시 시도해주세요.", "error");
-    return;
-  }
-
-  registerBtn.disabled = true;
-  setStatus(registerStatus, "Google 로그인 중...", null);
-  tokenClient.requestAccessToken({ prompt: "consent" });
-});
-
-async function performRegister() {
-  registerBtn.disabled = true;
-  setStatus(registerStatus, "등록하는 중...", null);
-
-  const event = buildGoogleCalendarEvent();
-
-  try {
-    const res = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(event),
-      }
-    );
-    const data = await res.json();
-    if (!res.ok) {
-      if (res.status === 401) {
-        accessToken = null;
-        setStatus(registerStatus, "로그인이 만료됐습니다. 버튼을 다시 눌러주세요.", "error");
-      } else {
-        throw new Error(data.error?.message || "등록에 실패했습니다.");
-      }
-      return;
-    }
-    setStatus(registerStatus, "캘린더에 등록되었습니다.", "success");
-  } catch (err) {
-    setStatus(registerStatus, String(err.message || err), "error");
-  } finally {
-    registerBtn.disabled = false;
-  }
-}
-
-function buildGoogleCalendarEvent() {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const base = {
-    summary: titleInput.value.trim(),
-    location: locationInput.value.trim(),
-    description: descriptionInput.value.trim(),
-  };
-
-  if (allDayInput.checked) {
-    const nextDay = new Date(dateInput.value);
-    nextDay.setDate(nextDay.getDate() + 1);
-    return {
-      ...base,
-      start: { date: dateInput.value },
-      end: { date: nextDay.toISOString().slice(0, 10) },
-    };
-  }
-
-  const startTime = startTimeInput.value || "09:00";
-  const endTime = endTimeInput.value || startTime;
-  return {
-    ...base,
-    start: { dateTime: `${dateInput.value}T${startTime}:00`, timeZone },
-    end: { dateTime: `${dateInput.value}T${endTime}:00`, timeZone },
-  };
-}
